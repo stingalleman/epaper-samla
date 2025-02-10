@@ -1,0 +1,13 @@
+[package]
+name = "epaper-samla"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = { version = "0.5.1", features = [
+  "json",
+] }
+rumqttc = "0.24.0"
+serde = "1.0.217"
+serde_json = "1.0.138"
+tokio = { version = "1.43.0", features = ["full"] }
