@@ -81,8 +81,7 @@ async fn rocket() -> _ {
         n: Arc::new(Mutex::new(0)),
     };
 
-    // bnecause revspace.nl kicks me out
-    let mut mqttoptions = MqttOptions::new("mqtt", "test.mosquitto.org", 1883);
+    let mut mqttoptions = MqttOptions::new("sting-epaper-samla", "revspace.nl", 1883);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
 
     let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
