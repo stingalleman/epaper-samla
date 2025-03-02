@@ -7,7 +7,7 @@ use rocket::{
     serde::{json::Json, Deserialize, Serialize},
     Config, State,
 };
-use rumqttc::{AsyncClient, MqttOptions, QoS};
+use rumqttc::{AsyncClient, MqttOptions, QoS, SubscribeFilter};
 
 // use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, task};
@@ -81,42 +81,57 @@ async fn rocket() -> _ {
         n: Arc::new(Mutex::new(0)),
     };
 
-    let mut mqttoptions = MqttOptions::new("mqtt", "revspace.nl", 1883);
+    // bnecause revspace.nl kicks me out
+    let mut mqttoptions = MqttOptions::new("mqtt", "test.mosquitto.org", 1883);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
 
     let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
-    client
-        .subscribe("revspace/doorduino/checked-in", QoS::AtMostOnce)
-        .await
-        .unwrap();
 
-    client
-        .subscribe("revspace/sting/samla", QoS::AtMostOnce)
-        .await
-        .unwrap();
+    let qos = QoS::AtMostOnce;
+
+    let subs: Vec<SubscribeFilter> = vec![
+        SubscribeFilter::new("revspace/sting/samla".to_string(), qos),
+        SubscribeFilter::new("revspace/doorduino/checked-in".to_string(), qos),
+    ];
+
+    client.subscribe_many(subs).await.unwrap();
 
     let data2 = data.clone();
     task::spawn(async move {
         loop {
             let event = eventloop.poll().await;
-            if let Ok(rumqttc::Event::Incoming(rumqttc::Packet::Publish(publish))) = &event {
-                match publish.topic.as_str() {
-                    "revspace/sting/samla" => {
-                        let payload = std::str::from_utf8(&publish.payload).unwrap().to_string();
 
-                        let mut lock = data2.msg.lock().await;
-                        *lock = payload;
-                    }
-                    "revspace/doorduino/checked-in" => {
-                        let payload = std::str::from_utf8(&publish.payload)
-                            .unwrap()
-                            .parse::<u8>()
-                            .unwrap();
+            match event {
+                Ok(ev) => match ev {
+                    rumqttc::Event::Incoming(rumqttc::Packet::Publish(publish)) => {
+                        match publish.topic.as_str() {
+                            "revspace/sting/samla" => {
+                                let payload =
+                                    std::str::from_utf8(&publish.payload).unwrap().to_string();
 
-                        let mut lock = data2.n.lock().await;
-                        *lock = payload;
+                                println!("Received: {} = {}", publish.topic, payload);
+
+                                let mut lock = data2.msg.lock().await;
+                                *lock = payload;
+                            }
+                            "revspace/doorduino/checked-in" => {
+                                let payload = std::str::from_utf8(&publish.payload)
+                                    .unwrap()
+                                    .parse::<u8>()
+                                    .unwrap();
+
+                                println!("Received: {} = {}", publish.topic, payload);
+
+                                let mut lock = data2.n.lock().await;
+                                *lock = payload;
+                            }
+                            _ => {}
+                        }
                     }
                     _ => {}
+                },
+                Err(err) => {
+                    println!("Error: {}", err);
                 }
             }
         }
@@ -126,6 +141,7 @@ async fn rocket() -> _ {
         port: 80,
         address: Ipv4Addr::new(0, 0, 0, 0).into(),
         cli_colors: false,
+        log_level: rocket::config::LogLevel::Off,
         ..Config::release_default()
     };
     rocket::build()
