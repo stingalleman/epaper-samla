@@ -32,7 +32,6 @@ pub enum Text {
 pub struct SharedData {
     pub n: Arc<Mutex<u8>>,
     pub msg: Arc<Mutex<String>>,
-    pub total_power: Arc<Mutex<String>>,
 }
 
 #[get("/")]
@@ -62,7 +61,7 @@ async fn samla(state: &State<SharedData>) -> Json<Vec<JsonTemplate>> {
                 Text::Integer(68),
                 Text::Integer(290),
                 Text::Integer(50),
-                Text::String(state.total_power.lock().await.to_string()),
+                Text::String(state.msg.lock().await.to_string()),
                 Text::String("fonts/calibrib30.vlw".to_string()),
                 Text::Integer(1),
                 // Text::Integer(1),
@@ -80,10 +79,9 @@ async fn rocket() -> _ {
     let data = SharedData {
         msg: Arc::new(Mutex::new("".to_string())),
         n: Arc::new(Mutex::new(0)),
-        total_power: Arc::new(Mutex::new("0 W".to_string())),
     };
 
-    let mut mqttoptions = MqttOptions::new("sting-epaper-samlaa", "revspace.nl", 1883);
+    let mut mqttoptions = MqttOptions::new("sting-epaper-samla", "revspace.nl", 1883);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
 
     let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
@@ -124,15 +122,6 @@ async fn rocket() -> _ {
                                 println!("Received: {} = {}", publish.topic, payload);
 
                                 let mut lock = data2.n.lock().await;
-                                *lock = payload;
-                            }
-                            "revspace/sensors/power/total/power" => {
-                                let payload =
-                                    std::str::from_utf8(&publish.payload).unwrap().to_string();
-
-                                println!("Received: {} = {}", publish.topic, payload);
-
-                                let mut lock = data2.total_power.lock().await;
                                 *lock = payload;
                             }
                             _ => {}
